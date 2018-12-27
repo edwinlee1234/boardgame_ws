@@ -1,0 +1,7 @@
+package main
+
+// UNEXPECT_ERROR
+const UNEXPECT_ERROR = "11000"
+
+// CHANNEL_ERROR
+const CHANNEL_ERROR = "11001"

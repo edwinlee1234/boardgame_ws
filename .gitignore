@@ -1,0 +1,9 @@
+github.com/*
+golang.org/*
+proto/*
+google.golang.org/*
+gopkg.in/*
+.vscode
+.DS_Stores
+.env
+.DS_Store
