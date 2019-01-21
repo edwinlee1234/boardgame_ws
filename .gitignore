@@ -1,8 +1,4 @@
-github.com/*
-golang.org/*
-proto/*
-google.golang.org/*
-gopkg.in/*
+vendor/*
 .vscode
 .DS_Stores
 .env

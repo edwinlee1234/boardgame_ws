@@ -10,7 +10,8 @@ import (
 	"net/http"
 	"strconv"
 
-	ErrorManner "./error"
+	ErrorManner "boardgame_ws/error"
+
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -136,6 +137,7 @@ func BroadcastChannel(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Println(err)
+		return
 	}
 
 	group.findHubChan <- data.ChannelID
@@ -159,14 +161,26 @@ func BroadcastUser(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Println(err)
+		return
 	}
 
 	// 找hub
 	group.findHubChan <- data.ChannelID
 	hub := <-groupFindHubChan
+	if hub == nil {
+		log.Println("hun nil id:", data.ChannelID)
+		return
+	}
+
 	// 找user
 	hub.findClientChan <- data.UUID
 	oldClient := <-hubFindClientChan
+
+	if oldClient == nil {
+		log.Println("user nil id:", data.UUID)
+		return
+	}
+
 	// 推播
 	message := bytes.TrimSpace(bytes.Replace(data.Data, newline, space, -1))
 	oldClient.send <- message

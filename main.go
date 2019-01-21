@@ -5,7 +5,8 @@ import (
 	"log"
 	"net/http"
 
-	middleware "./middleware"
+	middleware "boardgame_ws/middleware"
+
 	"github.com/gorilla/mux"
 	redistore "gopkg.in/boj/redistore.v1"
 )
