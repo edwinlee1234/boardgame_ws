@@ -130,6 +130,7 @@ func ConnWs(channelID int32, UUID string, w http.ResponseWriter, r *http.Request
 }
 
 // BroadcastChannel 推播某頻道
+// TODO 加一個安全機制，不是每一個人都可以自已推這個頻道
 func BroadcastChannel(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	var data BroadcastRequest
@@ -154,6 +155,7 @@ func BroadcastChannel(w http.ResponseWriter, r *http.Request) {
 }
 
 // BroadcastUser 推播單一個user
+// TODO 加一個安全機制，不是每一個人都可以自已推這個頻道
 func BroadcastUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	var data BroadcastUserRequest
@@ -177,7 +179,7 @@ func BroadcastUser(w http.ResponseWriter, r *http.Request) {
 	oldClient := <-hubFindClientChan
 
 	if oldClient == nil {
-		log.Println("user nil id:", data.UUID)
+		log.Println("user nil uuid:", data.UUID)
 		return
 	}
 

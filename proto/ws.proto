@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option objc_class_prefix = "HLW";
+
+package api;
+
+// 你server對外的func都寫在這邊
+// 打完記得 protoc --go_out=plugins=grpc:. *.proto
+// 會build出文件
+service Ws {
+  // Request & Res都要寫，不可空  
+  rpc Ping (WsTestRequest) returns (WsTestReply) {}
+}
+
+// 要定義你Request & Res的Struct
+message WsTestRequest {
+}
+
+message WsTestReply {
+  string State = 1;
+}

@@ -3,3 +3,5 @@ vendor/*
 .DS_Stores
 .env
 .DS_Store
+
+note
