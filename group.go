@@ -1,67 +1,105 @@
 package main
 
-// Group 用來管理一堆Hub
-// 新增刪除搜尋hub
-type Group struct {
-	hubs          map[*Hub]bool
-	addHubChan    chan *Hub
-	findHubChan   chan int32
-	deleteHubChan chan int32
+import (
+	"sync"
+	"time"
+
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	// 80秒 ping一次hub，有沒有人在連，沒有就kill掉
+	pingHubPeriod = 80 * time.Second
+	// lobbyhub id
+	lobby = 1
+	// global caht
+	globalChat = 2
+)
+
+// 永遠都要存在的hub
+var vipHub = map[int32]bool{
+	lobby:      true,
+	globalChat: true,
 }
 
-var groupFindHubChan = make(chan *Hub)
-
-// CreateGroup init Group
-func CreateGroup() *Group {
-	group = newGroup()
-	go group.run()
-
-	return group
-}
-
-func newGroup() *Group {
-	return &Group{
-		hubs:          make(map[*Hub]bool),
-		addHubChan:    make(chan *Hub),
-		findHubChan:   make(chan int32),
-		deleteHubChan: make(chan int32),
+func newWSCenter() *WSCenter {
+	return &WSCenter{
+		make(map[int32]*Hub),
+		&sync.Mutex{},
 	}
 }
 
-// 搜尋hub
-// 回傳hub or nil
-func (g *Group) findHub(ID int32) {
-	for hub, open := range g.hubs {
-		if hub.id == ID && open {
-			groupFindHubChan <- hub
-			return
-		}
-	}
-
-	groupFindHubChan <- nil
+// WSCenter 裝hub的地方
+type WSCenter struct {
+	hubs map[int32]*Hub
+	m    *sync.Mutex
 }
 
-// 刪掉hub
-func (g *Group) deleteHub(ID int32) {
-	for hub, _ := range g.hubs {
-		if hub.id == ID {
-			hub.destory <- true
-			delete(g.hubs, hub)
+// Init 把初始化的hub都new出來
+func (g *WSCenter) Init() {
+	for channelID, isOpen := range vipHub {
+		if isOpen {
+			hub := newHub(channelID)
+			g.RegisterHub(channelID, hub)
+
+			go hub.Run()
 		}
 	}
 }
 
-func (g *Group) run() {
+// FindHub 用ID去找hub
+func (g *WSCenter) FindHub(ID int32) *Hub {
+	if _, ok := g.hubs[ID]; !ok {
+		return nil
+	}
+
+	return g.hubs[ID]
+}
+
+// RegisterHub RegisterHub
+func (g *WSCenter) RegisterHub(ID int32, hub *Hub) error {
+	log.WithFields(log.Fields{
+		"id": ID,
+	}).Info("RegisterHub")
+
+	g.hubs[ID] = hub
+
+	return nil
+}
+
+// UnregisterHub UnregisterHub
+func (g *WSCenter) UnregisterHub(ID int32) {
+	if _, ok := g.hubs[ID]; !ok {
+		log.WithFields(log.Fields{
+			"id": ID,
+		}).Warning("刪hub ERROR，找不到hub id")
+
+		return
+	}
+
+	hub := g.hubs[ID]
+	hub.destroy <- true
+
+	g.m.Lock()
+	delete(g.hubs, ID)
+	g.m.Unlock()
+}
+
+// HubCleaner 每一段時間去檢查全部的hub，是不是沒人在連線了，把它kill掉把記憶體釋出
+func (g *WSCenter) HubCleaner() {
+	ticker := time.NewTicker(60 * time.Second)
+
 	for {
 		select {
-		case hubID := <-g.findHubChan:
-			g.findHub(hubID)
-		// 新增hub
-		case hub := <-g.addHubChan:
-			g.hubs[hub] = true
-		// 刪hub
-		case hubID := <-g.deleteHubChan:
-			g.deleteHub(hubID)
+		case <-ticker.C:
+			for ID, hub := range g.hubs {
+				// 不是vip的hub，才需要檢查
+				if _, isVip := vipHub[ID]; !isVip {
+					if len(hub.clients) == 0 {
+						g.UnregisterHub(ID)
+					}
+				}
+			}
 		}
 	}
 }

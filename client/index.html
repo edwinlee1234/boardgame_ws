@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>WebSocket</title>
+</head>
+<body>
+  <button id="send">send</button>
+</body>
+<script>
+  let conn = null
+  let self = this
+  conn = new WebSocket("ws://0.0.0.0:8000/ws?channel=lobby&id=1")
+  console.log(conn)
+
+  conn.onclose = (evt) => {
+      console.log("WebSocket Close")
+      conn = null
+  };
+
+  conn.onmessage = (evt) => {
+      console.log(evt)
+  };
+
+  document.querySelector("#send").addEventListener("click", (event) => {
+    if (conn.readyState !== 1) {
+      console.log("WS not ready");
+      return;
+    }
+    let test = {
+      haha: "QQ",
+      happy: "sad"
+    }
+    conn.send(JSON.stringify(test));
+  })
+</script>
+</html>

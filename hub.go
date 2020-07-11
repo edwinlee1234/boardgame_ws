@@ -1,78 +1,89 @@
 package main
 
-// Hub 用來放連線的地方
+import (
+	"sync"
+
+	log "github.com/sirupsen/logrus"
+)
+
+// Hub 放連線的地方
 type Hub struct {
-	id int32
-
-	destory chan bool
-
-	clients map[*Client]bool
-
-	broadcast chan []byte
-
-	register chan *Client
-
-	unregister chan *Client
-
-	findClientChan chan string
+	ID               int32
+	clients          map[*Client]bool
+	register         chan *Client
+	unregister       chan *Client
+	broadcast        chan []byte
+	destroy          chan bool
+	FindClientByUUID chan string
+	GetClient        chan *Client
+	m                *sync.Mutex
 }
 
-var hubFindClientChan = make(chan *Client)
-
-// NewHub return *Hub
-func NewHub(id int32) *Hub {
+func newHub(ID int32) *Hub {
 	return &Hub{
-		id:             id,
-		broadcast:      make(chan []byte),
-		destory:        make(chan bool),
-		register:       make(chan *Client),
-		unregister:     make(chan *Client),
-		clients:        make(map[*Client]bool),
-		findClientChan: make(chan string),
+		ID:               ID,
+		clients:          make(map[*Client]bool),
+		register:         make(chan *Client),
+		unregister:       make(chan *Client),
+		broadcast:        make(chan []byte),
+		destroy:          make(chan bool),
+		FindClientByUUID: make(chan string),
+		GetClient:        make(chan *Client),
+		m:                &sync.Mutex{},
 	}
-}
-
-func (h *Hub) findClient(ID string) {
-	for client, _ := range h.clients {
-		if client.id == ID {
-			hubFindClientChan <- client
-			return
-		}
-	}
-
-	hubFindClientChan <- nil
 }
 
 func (h *Hub) Run() {
 	for {
 		select {
-		// 這邊會扔地址進來
+		// 註冊新ws連線
 		case client := <-h.register:
+			log.WithFields(log.Fields{
+				"uuid": client.UUID,
+			}).Info("Hub register client")
+
 			h.clients[client] = true
+
+		// 取消ws連線
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
+				log.WithFields(log.Fields{
+					"uuid": client.UUID,
+				}).Info("Hub unregister client")
+
 				close(client.send)
+				h.m.Lock()
+				delete(h.clients, client)
+				h.m.Unlock()
 			}
-		case message := <-h.broadcast:
-			for client := range h.clients {
-				// 不太懂為何要這樣寫
-				// 為什麼不是直接client.send <- message
-				// 保留例子的寫法
-				select {
-				case client.send <- message:
-				default:
-					close(client.send)
-					delete(h.clients, client)
+
+		// 推播
+		case msg := <-h.broadcast:
+			for client, ok := range h.clients {
+				if ok {
+					client.send <- msg
 				}
 			}
-		case clientID := <-h.findClientChan:
-			h.findClient(clientID)
-		case destory := <-h.destory:
-			// 把for迴圈return掉
-			if destory {
-				return
+
+		// 找client連線
+		case UUID := <-h.FindClientByUUID:
+			for client, isOk := range h.clients {
+				if client.UUID == UUID && isOk {
+					h.GetClient <- client
+				}
 			}
+
+		// hub被刪掉，client連線全部刪
+		case <-h.destroy:
+			for client, ok := range h.clients {
+				if ok {
+					close(client.send)
+					h.m.Lock()
+					delete(h.clients, client)
+					h.m.Unlock()
+				}
+			}
+			return // END
 		}
 	}
 }
